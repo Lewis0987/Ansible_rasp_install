@@ -1,0 +1,3 @@
+ECX01-0002 ansible_host=192.168.0.101 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982
+ECX01-0003 ansible_host=192.168.0.103 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982
+ECX01-0004 ansible_host=192.168.0.104 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982

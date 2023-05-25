@@ -1,0 +1,89 @@
+# main.yml
+- name: The example playbook # 階層1 - Play
+  hosts: ECX01-0002, ECX01-0003, ECX01-0004 # 定義執行此Play的機器
+  vars: # 設定變數
+    dynamic_word: "Hello World"
+    passwd: "1234"
+
+  tasks: # 設定 task
+  - name: add modbus_ecx01 folder
+    become: yes
+    file:
+      path: /var/modbus_ecx01
+      state: directory
+      owner: etica
+      group: etica
+      mode: '755'
+
+  - name: Install vim
+    become: yes
+    apt:
+      name: vim
+      state: present
+
+  - name: Install rsync running synchronize later
+    become: yes
+    apt:
+      name: rsync
+      state: present
+
+  - name: place modbus_ecx01 folder
+    synchronize:
+      src: /media/kidian/data/projects/python/modbus/modbus_ecx01/
+      dest: /var/modbus_ecx01
+
+  - name: pip3 install modbus_tk
+    become: yes
+    pip:
+      name: modbus_tk
+      executable: pip3
+
+  - name: place udev rule file
+    become: yes
+    synchronize:
+      src: ./conf/98-ecx01.rules
+      dest: /etc/udev/rules.d
+
+  - name: Restart udev service
+    become: yes
+    service:
+      name: udev
+      state: restarted
+  
+  - name: Insert boot script
+    become: yes
+    lineinfile:
+      path: /etc/rc.local
+      line: 'python3 /var/modbus_ecx01/modbus.py'
+      insertbefore: 'exit 0'
+
+  - name: Ensure resolution is set to right mode
+    become: yes
+    lineinfile:
+      path: /boot/config.txt
+      regexp: '^#hdmi_safe='
+      line: hdmi_safe=4
+
+  - name: place anydesk installer
+    synchronize:
+      src: ./bin/anydesk_6.2.1-1_armhf.deb
+      dest: /home/etica
+
+  - name: Install anydesk
+    become: yes
+    apt:
+      deb: /home/etica/anydesk_6.2.1-1_armhf.deb
+  
+  #- name: set anydesk password
+  #  become: yes
+  #  shell: echo etica13098982ecx01 | anydesk --set-password
+  #  register: anydesk_passwd
+  
+  - name: show anydesk id
+    become: yes
+    shell: anydesk --get-id
+    register: anydesk_id
+
+  - name: Print anydesk info
+    debug:
+      msg: Anydesk ID is {{ anydesk_id.stdout }}

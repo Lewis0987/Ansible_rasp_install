@@ -1,0 +1,2 @@
+KERNEL=="ttyUSB*", KERNELS=="1-1.2", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE:="0777", SYMLINK+="inverter"
+KERNEL=="ttyUSB*", KERNELS=="1-1.4", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE:="0777", SYMLINK+="bms"
