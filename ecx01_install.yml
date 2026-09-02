@@ -1,6 +1,6 @@
 # main.yml
 - name: The example playbook # 階層1 - Play
-  hosts: ECX01-0002, ECX01-0003, ECX01-0004 # 定義執行此Play的機器
+  hosts: etica@TestSD # 定義執行此Play的機器
   vars: # 設定變數
     dynamic_word: "Hello World"
     passwd: "1234"
@@ -29,14 +29,36 @@
 
   - name: place modbus_ecx01 folder
     synchronize:
-      src: /media/kidian/data/projects/python/modbus/modbus_ecx01/
+      # src: /media/kidian/data/projects/python/modbus/modbus_ecx01/
+      src: /mnt/d/lewis_ProJ/modbus_ecx01/
       dest: /var/modbus_ecx01
 
-  - name: pip3 install modbus_tk
+  # - name: pip3 install modbus_tk
+  #   become: yes
+  #   pip:
+  #     name: modbus_tk
+  #     executable: pip3
+  
+  # 1. 安裝 venv 支援
+  - name: Install Python venv support # 1. 安裝建立 Python virtual environment 所需套件
+    become: yes
+    apt:
+      name: python3-venv
+      state: present  
+
+  # 2. 建立專用 venv
+  - name: Create modbus virtual environment # 2. 建立 modbus_ecx01 專用 Python 虛擬環境
+    become: yes
+    command:
+      cmd: python3 -m venv /var/modbus_ecx01/venv
+      creates: /var/modbus_ecx01/venv/bin/python
+
+  # 3. 取代原本 pip3 install modbus_tk
+  - name: Install modbus_tk in virtual environment # 3. 取代原本「pip3 install modbus_tk」
     become: yes
     pip:
       name: modbus_tk
-      executable: pip3
+      virtualenv: /var/modbus_ecx01/venv
 
   - name: place udev rule file
     become: yes
@@ -66,13 +88,13 @@
 
   - name: place anydesk installer
     synchronize:
-      src: ./bin/anydesk_6.2.1-1_armhf.deb
+      src: ./bin/anydesk_8.0.4-1_arm64.deb
       dest: /home/etica
 
   - name: Install anydesk
     become: yes
     apt:
-      deb: /home/etica/anydesk_6.2.1-1_armhf.deb
+      deb: /home/etica/anydesk_8.0.4-1_arm64.deb
   
   #- name: set anydesk password
   #  become: yes
