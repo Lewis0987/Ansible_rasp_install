@@ -1,0 +1,37 @@
+---
+# ---- application provenance -------------------------------------------
+# bin/modbus_ecx01/ is vendored verbatim from:
+#   repo   : http://192.168.1.37/software/modbus_slf01.git
+#   branch : master
+#   commit : 2531c85167167d6701930dcc2447a18e32dbe375
+# config.py is NOT vendored - it is rendered per host from conf/config.py.j2.
+ecx01_src_repo:   'software/modbus_slf01'
+ecx01_src_branch: 'master'
+ecx01_src_commit: '2531c85167167d6701930dcc2447a18e32dbe375'
+
+# ---- deployment paths -------------------------------------------------
+modbus_app_dir:      /var/modbus_ecx01
+modbus_venv_dir:     /var/modbus_ecx01/venv
+modbus_service_name: modbus_ecx01
+
+# ---- config.py values (rendered by conf/config.py.j2) ------------------
+api_upload_url: 'https://cloud.etica-inc.com/api/import'
+api_alert_url:  'https://cloud.etica-inc.com/api/alert'
+device_pn:      'ECX01'
+
+# device_sn is deliberately NOT defaulted here.
+# It MUST be set per host in the `hosts` inventory; the playbook asserts it.
+
+# ---- python dependencies installed into the venv ----------------------
+# pyserial arrives transitively via modbus_tk (requires_dist: pyserial>=3.1)
+# but the import check below verifies it explicitly rather than assuming.
+modbus_pip_packages:
+  - modbus_tk
+  - requests
+
+# ---- legacy /etc/rc.local migration -----------------------------------
+# OFF BY DEFAULT. Production ECX01-0002/0003/0004 still boot modbus.py from
+# rc.local. Flipping this to true removes ONLY that one line, and only on a
+# host that actually has /etc/rc.local. Turn it on per host, deliberately,
+# at the moment that host is migrated to the systemd unit - never globally.
+remove_legacy_rc_local: false

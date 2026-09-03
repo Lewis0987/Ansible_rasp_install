@@ -1,15 +1,43 @@
-# main.yml
-- name: The example playbook # 階層1 - Play
-  hosts: etica@TestSD # 定義執行此Play的機器
-  vars: # 設定變數
+# ecx01_install.yml
+#
+# ECX01 Raspberry Pi provisioning.
+#
+# Application source : gitlab software/modbus_slf01
+#                      branch master
+#                      commit 2531c85167167d6701930dcc2447a18e32dbe375
+#                      vendored verbatim into ./bin/modbus_ecx01/
+#                      (config.py deliberately NOT vendored - see conf/config.py.j2)
+# Entry point        : modbus.py  ->  class ECX01_Uploader
+# Serial devices     : /dev/inverter, /dev/bms  (see conf/98-ecx01.rules)
+#
+- name: Provision ECX01 modbus uploader   # 階層1 - Play
+  hosts: etica@TestSD                     # 定義執行此Play的機器
+  vars:                                   # 設定變數
     dynamic_word: "Hello World"
     passwd: "1234"
 
-  tasks: # 設定 task
+  tasks:                                  # 設定 task
+
+  # ------------------------------------------------------------------
+  # 0. Guard: DEVICE_SN must be supplied per host by the inventory.
+  #    No default exists on purpose - a bench unit must never silently
+  #    inherit a production ECX01-nnnn serial number.
+  #    檢查TestSD 在 inventory設定：device_sn=TESTSD-0000
+  # ------------------------------------------------------------------
+  - name: Assert per-host device_sn is defined
+    assert:
+      that:
+        - device_sn is defined
+        - device_sn | default('') | trim | length > 0
+      fail_msg: >-
+        device_sn is not set for {{ inventory_hostname }}.
+        Add "device_sn=<SERIAL>" to that host's line in the `hosts` inventory.
+      success_msg: "device_sn={{ device_sn | default('') }} / device_pn={{ device_pn }}"
+
   - name: add modbus_ecx01 folder
     become: yes
     file:
-      path: /var/modbus_ecx01
+      path: "{{ modbus_app_dir }}"
       state: directory
       owner: etica
       group: etica
@@ -27,57 +55,169 @@
       name: rsync
       state: present
 
+  # ------------------------------------------------------------------
+  # 1. Application code, vendored from software/modbus_slf01 @ master.
+  #    config.py is EXCLUDED here - it is rendered from a template below
+  #    so that DEVICE_SN stays per-host.
+  # ------------------------------------------------------------------
   - name: place modbus_ecx01 folder
     synchronize:
-      # src: /media/kidian/data/projects/python/modbus/modbus_ecx01/
-      src: /mnt/d/lewis_ProJ/modbus_ecx01/
-      dest: /var/modbus_ecx01
+      src: ./bin/modbus_ecx01/
+      dest: "{{ modbus_app_dir }}/"
+      rsync_opts:
+        - "--exclude=config.py"
+        - "--exclude=__pycache__/"
+        - "--exclude=*.pyc"
 
-  # - name: pip3 install modbus_tk
-  #   become: yes
-  #   pip:
-  #     name: modbus_tk
-  #     executable: pip3
-  
-  # 1. 安裝 venv 支援
-  - name: Install Python venv support # 1. 安裝建立 Python virtual environment 所需套件
+  # 2. 安裝 venv 支援
+  - name: Install Python venv support   # 建立 Python virtual environment 所需套件
     become: yes
     apt:
       name: python3-venv
-      state: present  
+      state: present
 
-  # 2. 建立專用 venv
-  - name: Create modbus virtual environment # 2. 建立 modbus_ecx01 專用 Python 虛擬環境
+  # 3. 建立專用 venv
+  - name: Create modbus virtual environment   # 建立 modbus_ecx01 專用 Python 虛擬環境
     become: yes
     command:
-      cmd: python3 -m venv /var/modbus_ecx01/venv
-      creates: /var/modbus_ecx01/venv/bin/python
+      cmd: "python3 -m venv {{ modbus_venv_dir }}"
+      creates: "{{ modbus_venv_dir }}/bin/python"
 
-  # 3. 取代原本 pip3 install modbus_tk
-  - name: Install modbus_tk in virtual environment # 3. 取代原本「pip3 install modbus_tk」
+  # ------------------------------------------------------------------
+  # 4. Python dependencies - installed ONLY into the venv.
+  #    Never the system pip3, never --break-system-packages.
+  #    pyserial is a transitive dep of modbus_tk; it is not assumed, it is
+  #    verified by the import check in the next task.
+  # ------------------------------------------------------------------
+  - name: Install Python dependencies in virtual environment
     become: yes
     pip:
-      name: modbus_tk
-      virtualenv: /var/modbus_ecx01/venv
+      name: "{{ modbus_pip_packages }}"
+      state: present
+      virtualenv: "{{ modbus_venv_dir }}"
 
+  # NOT forced with check_mode: false - under --check the pip task above
+  # installs nothing, so a forced import would misreport: a false failure on
+  # a fresh host, or a false pass on a stale one. Skipped instead.
+  - name: Verify modbus_tk / serial / requests import inside the venv
+    become: yes
+    command:
+      argv:
+        - "{{ modbus_venv_dir }}/bin/python"
+        - "-c"
+        - "import modbus_tk, serial, requests; import importlib.metadata as m; print('modbus_tk=' + m.version('modbus_tk'), 'pyserial=' + m.version('pyserial'), 'requests=' + m.version('requests'))"
+    changed_when: false
+    register: venv_import_check
+    when: not ansible_check_mode
+
+  # A when-skipped task still registers its variable (a dict carrying
+  # skipped: true), so "is defined" alone does not prove .stdout exists -
+  # e.g. when the task is stepped past under --step. Both are checked.
+  - name: Print venv dependency versions
+    debug:
+      msg: "{{ venv_import_check.stdout }}"
+    when:
+      - not ansible_check_mode
+      - venv_import_check is defined
+      - venv_import_check.stdout is defined
+
+  - name: Note dependency verification skipped in check mode
+    debug:
+      msg: "Dependency import verification is skipped in Ansible check mode."
+    when: ansible_check_mode
+
+  # ------------------------------------------------------------------
+  # 5. Per-host config.py (DEVICE_SN / DEVICE_PN / API URLs).
+  # ------------------------------------------------------------------
+  - name: Render per-host config.py
+    become: yes
+    template:
+      src: ./conf/config.py.j2
+      dest: "{{ modbus_app_dir }}/config.py"
+      owner: etica
+      group: etica
+      mode: '0644'
+
+  # ------------------------------------------------------------------
+  # 6. udev rules -> /dev/inverter, /dev/bms
+  #    copy (not synchronize) so owner/group/mode are enforced as root.
+  # ------------------------------------------------------------------
   - name: place udev rule file
     become: yes
-    synchronize:
+    copy:
       src: ./conf/98-ecx01.rules
-      dest: /etc/udev/rules.d
+      dest: /etc/udev/rules.d/98-ecx01.rules
+      owner: root
+      group: root
+      mode: '0644'
+    register: udev_rule
 
-  - name: Restart udev service
+  - name: Reload udev rules
     become: yes
-    service:
-      name: udev
-      state: restarted
-  
-  - name: Insert boot script
+    command: udevadm control --reload-rules
+    when: udev_rule.changed
+
+  - name: Trigger udev
+    become: yes
+    command: udevadm trigger
+    when: udev_rule.changed
+
+  # ------------------------------------------------------------------
+  # 7. systemd unit. Replaces the old /etc/rc.local boot line, which ran
+  #    the system python3 and therefore could not see the venv packages.
+  #    NOT enabled and NOT started at this stage - see commented tasks.
+  # ------------------------------------------------------------------
+  - name: place systemd service unit
+    become: yes
+    copy:
+      src: "./conf/{{ modbus_service_name }}.service"
+      dest: "/etc/systemd/system/{{ modbus_service_name }}.service"
+      owner: root
+      group: root
+      mode: '0644'
+    register: modbus_unit
+
+  - name: Reload systemd daemon
+    become: yes
+    systemd:
+      daemon_reload: yes
+    when: modbus_unit.changed
+
+  # --- Deliberately NOT run yet. Enable after config.py is confirmed. ---
+  # - name: Enable and start modbus_ecx01
+  #   become: yes
+  #   systemd:
+  #     name: "{{ modbus_service_name }}"
+  #     enabled: yes
+  #     state: started
+
+  # ------------------------------------------------------------------
+  # 8. Legacy /etc/rc.local migration - OFF BY DEFAULT.
+  #    ECX01-0002/0003/0004 were provisioned with a system-python boot
+  #    line in rc.local invoking modbus.py from the app dir (see regexp).
+  #    Leaving it in place alongside the systemd unit would run two
+  #    processes contending for /dev/inverter and /dev/bms.
+  #    This only ever fires when remove_legacy_rc_local is explicitly set
+  #    true for that host AND /etc/rc.local actually exists. It never
+  #    creates rc.local and never touches any other line in it.
+  # ------------------------------------------------------------------
+  - name: Check legacy rc.local
+    become: yes
+    stat:
+      path: /etc/rc.local
+    register: legacy_rc_local
+
+  - name: Remove legacy ECX01 boot line from rc.local
     become: yes
     lineinfile:
       path: /etc/rc.local
-      line: 'python3 /var/modbus_ecx01/modbus.py'
-      insertbefore: 'exit 0'
+      regexp: '^\s*python3\s+/var/modbus_ecx01/modbus\.py\s*&?\s*$'
+      state: absent
+      create: no
+      backup: yes
+    when:
+      - remove_legacy_rc_local | bool
+      - legacy_rc_local.stat.exists
 
   - name: Ensure resolution is set to right mode
     become: yes
@@ -95,17 +235,23 @@
     become: yes
     apt:
       deb: /home/etica/anydesk_8.0.4-1_arm64.deb
-  
+
   #- name: set anydesk password
   #  become: yes
   #  shell: echo etica13098982ecx01 | anydesk --set-password
   #  register: anydesk_passwd
-  
+
   - name: show anydesk id
     become: yes
     shell: anydesk --get-id
     register: anydesk_id
+    when: not ansible_check_mode
 
+  # Same check-mode shape as the venv verification above.
   - name: Print anydesk info
     debug:
       msg: Anydesk ID is {{ anydesk_id.stdout }}
+    when:
+      - not ansible_check_mode
+      - anydesk_id is defined
+      - anydesk_id.stdout is defined

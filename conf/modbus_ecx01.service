@@ -1,0 +1,21 @@
+[Unit]
+Description=ECX01 Modbus RTU collector / cloud uploader
+Documentation=http://192.168.1.37/software/modbus_slf01
+# Source branch: master
+# Source commit: 2531c85167167d6701930dcc2447a18e32dbe375
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=etica
+Group=etica
+WorkingDirectory=/var/modbus_ecx01
+ExecStart=/var/modbus_ecx01/venv/bin/python /var/modbus_ecx01/modbus.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

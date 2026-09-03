@@ -1,0 +1,7 @@
+# Upstream ECX01 sources are LF in software/modbus_slf01 and are rsync'd
+# verbatim to a Linux host. core.autocrlf=true would otherwise rewrite them
+# to CRLF on checkout. Keep these byte-for-byte identical to the upstream blobs.
+bin/modbus_ecx01/** -text
+conf/*.j2           text eol=lf
+conf/*.service      text eol=lf
+conf/*.rules        text eol=lf

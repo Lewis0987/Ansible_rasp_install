@@ -1,4 +1,6 @@
-ECX01-0002 ansible_host=192.168.0.101 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982
-ECX01-0003 ansible_host=192.168.0.103 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982
-ECX01-0004 ansible_host=192.168.0.104 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982
-etica@TestSD ansible_host=192.168.127.100 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982
+# device_sn = per-host DEVICE_SN written into /var/modbus_ecx01/config.py
+# TestSD is a bench unit: it deliberately does NOT carry a production ECX01-nnnn SN.
+ECX01-0002 ansible_host=192.168.0.101 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982 device_sn=ECX01-0002
+ECX01-0003 ansible_host=192.168.0.103 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982 device_sn=ECX01-0003
+ECX01-0004 ansible_host=192.168.0.104 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982 device_sn=ECX01-0004
+etica@TestSD ansible_host=192.168.127.100 ansible_ssh_port=22 ansible_ssh_user=etica ansible_become_pass=etica13098982 device_sn=TESTSD-0000
