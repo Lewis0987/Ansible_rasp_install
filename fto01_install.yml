@@ -12,47 +12,13 @@
 # Serial devices     : /dev/inverter, /dev/bms
 #                      (see conf/98-ecx01.rules)
 # ==============================================================
-# Play 1 - Docker Container verification
+# FTO01 -  Raspberry Pi provisioning
 # ==============================================================
-- name: Ansible Docker Test
-  hosts: localhost
-  connection: local
-  gather_facts: false
-
-  tasks:
-
-    - name: Check container hostname
-      ansible.builtin.command:
-        cmd: hostname
-      register: docker_hostname
-      changed_when: false
-
-    - name: Print container hostname
-      ansible.builtin.debug:
-        msg: "Docker Container hostname = {{ docker_hostname.stdout }}"
-
-    - name: Check Ansible version
-      ansible.builtin.command:
-        cmd: ansible-playbook --version
-      register: ansible_version_result
-      changed_when: false
-
-    - name: Print Ansible version
-      ansible.builtin.debug:
-        var: ansible_version_result.stdout_lines
-
-    - name: Docker verification PASS
-      ansible.builtin.debug:
-        msg: "Ansible task 已成功在 Docker Container 裡執行"
-
-# ==============================================================
-# Play 2 - FTO01 Raspberry Pi provisioning
-# ==============================================================
-- name: Provision ECX01 modbus uploader
+- name: Provision FTO01 modbus uploader
   hosts: etica@FTO01
-  vars:
-    dynamic_word: "Hello World"
-    passwd: "1234"
+  # vars:
+  #   dynamic_word: "Hello World"
+  #   passwd: "1234"
 
 
   tasks:                                  # 設定 task

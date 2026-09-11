@@ -18,4 +18,4 @@ COPY . /work
 
 # 執行每task會確認
 # CMD ["ansible-playbook", "-i", "hosts", "ecx01_install.yml"] 
-CMD ["ansible-playbook", "-i", "hosts", "demo.yml"] 
+CMD ["ansible-playbook", "-i", "hosts", "fto01_install.yml"] 
